@@ -1,18 +1,262 @@
-<!DOCTYPE html>
+package com.groovy;
 
-<html>
-<head>
-  <meta http-equiv="Content-Type" content="text/html; charset=utf-8"/>
-  <title>my-first-website</title>
-  <LINK href="styles.css" rel="stylesheet" type="text/css">
-</head>
+import org.codehaus.groovy.ast.*;
+import org.codehaus.groovy.ast.ModuleNode;
+import org.codehaus.groovy.ast.expr.*;
+import org.codehaus.groovy.control.*;
+import org.codehaus.groovy.control.CompilerConfiguration;
+import org.codehaus.groovy.ast.expr.VariableExpression;
+import org.codehaus.groovy.ast.expr.DeclarationExpression;
+import groovy.lang.GroovyClassLoader;
 
-<body>
+import java.io.File;
+import java.nio.file.Files;
+import java.util.HashSet;
+import java.util.Set;
+import java.io.File;
+import java.util.List;
 
-<img src="https://octodex.github.com/images/daftpunktocat-thomas.gif" id="octocat" alt="octocat-gif" />
+import org.codehaus.groovy.ast.ClassCodeVisitorSupport;
+import org.codehaus.groovy.ast.expr.VariableExpression;
+import org.codehaus.groovy.ast.expr.MethodCallExpression;
+import org.codehaus.groovy.ast.expr.Expression;
+import org.codehaus.groovy.ast.stmt.ExpressionStatement;
+import org.codehaus.groovy.control.SourceUnit;
 
-<!-- Change this code here by copy and pasting your template on line 15 -->
-<p>Welcome to your first GitHub Pages website!</p>
+import java.util.HashSet;
+import java.util.Set;
 
-</body>
-</html>
+public class App {
+
+	
+	public static void main(String[] args) {
+        // Path to the Groovy script
+        String scriptPath = "C:\\Users\\amitb\\Desktop\\Software\\undefinedvar\\groovy.groovy";
+        analyzeGroovyScript(scriptPath);
+    }
+    public static ModuleNode createModuleNode(String groovyCode) {
+    	CompilerConfiguration config = new CompilerConfiguration();
+    	 GroovyClassLoader classLoader = new GroovyClassLoader(Thread.currentThread().getContextClassLoader(), config);
+       
+        CompilationUnit unit = new CompilationUnit(config);
+        System.out.println(groovyCode);
+//        unit.addSource("simpleScript.groovy", groovyCode);
+        SourceUnit sourceUnit = unit.addSource("simpleScript.groovy", groovyCode);
+        // Validate if the source was added successfully
+        if (sourceUnit != null) {
+            System.out.println("Source added successfully.");
+            
+            // Check for any compilation errors
+            if (sourceUnit.getErrorCollector().hasErrors()) {
+                System.out.println("There are compilation errors:");
+                sourceUnit.getErrorCollector().getErrors().forEach(error -> 
+                    System.out.println(error.toString())
+                );
+            } else {
+                System.out.println("No compilation errors found.");
+            }
+        } else {
+            System.out.println("Failed to add source.");
+        }
+
+        try {
+            unit.compile(org.codehaus.groovy.control.Phases.CONVERSION);
+            System.out.println(unit);
+            return sourceUnit.buildAST();
+        } catch (CompilationFailedException e) {
+            // Handle compilation errors
+            return null;
+        }
+    }
+
+
+    private static void analyzeGroovyScript(String scriptPath) {
+        try {
+            // Read the Groovy script file
+            String scriptContent = new String(Files.readAllBytes(new File(scriptPath).toPath()));
+            CompilerConfiguration config = new CompilerConfiguration();
+            // Create a new GroovyClassLoader with the configuration
+            GroovyClassLoader classLoader = new GroovyClassLoader();
+
+            // Parse the script and create a ModuleNode
+//            System.out.println(scriptContent);
+            ModuleNode moduleNode =  createModuleNode(scriptContent);
+            System.out.println(moduleNode);
+            Set<String> definedVariables = new HashSet<>();
+            Set<String> usedVariables = new HashSet<>();
+
+            Set<String> allDefinedVariables = new HashSet<>();
+            Set<String> allUndefinedVariables = new HashSet<>();
+            UndefinedVariableFinder finder = new UndefinedVariableFinder();
+
+            // Process all classes in the module
+            for (ClassNode classNode : moduleNode.getClasses()) {
+                classNode.visitContents(finder);
+                allDefinedVariables.addAll(finder.getDefinedVariables());
+                allUndefinedVariables.addAll(finder.getUndefinedVariables());
+            }
+            // Iterate over all classes and scripts in the module
+//            for (ClassNode classNode : moduleNode.getClasses()) {
+//                classNode.visitContents(finder);
+//                allUndefinedVariables.addAll(finder.getUndefinedVariables());
+//            }
+
+            // If it's a script, it will contain statements in the `moduleNode.getStatementBlock()`
+            if (moduleNode.getStatementBlock() != null) {
+                finder.visitBlockStatement(moduleNode.getStatementBlock());
+                allUndefinedVariables.addAll(finder.getUndefinedVariables());
+            }
+            System.out.println(finder.getUndefinedVariables());
+            // Visit each class in the module
+            for (ClassNode classNode : moduleNode.getClasses()) {
+            	System.out.println(classNode.getText());
+//                classNode.visitContents(new VariableVisitor(definedVariables, usedVariables));
+            }
+            System.out.println("Defined Variable");
+            System.out.println(allDefinedVariables);
+            System.out.println("Undefined Variable");
+            System.out.println(allUndefinedVariables);
+            // Check for undefined variables
+            for (String var : usedVariables) {
+                if (!definedVariables.contains(var)) {
+                    System.out.println("Undefined variable: " + var);
+                }
+            }
+
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+    }
+
+    
+    private static class UndefinedVariableFinder extends ClassCodeVisitorSupport {
+        private Set<String> definedVariables = new HashSet<>();
+        private Set<String> undefinedVariables = new HashSet<>();
+
+        @Override
+        public void visitVariableExpression(VariableExpression variable) {
+        	System.out.println("-----------------------------------");
+            // Add variables defined with 'def' or with an explicit type to definedVariables
+            if ((variable.getType() != null && !variable.getType().getName().equals("java.lang.Object"))) {
+                definedVariables.add(variable.getName());
+                System.out.println("Defined variable found: " + variable.getName() + variable.isDynamicTyped());
+            } else {
+            	System.out.println("Initial Expression-------");
+            	System.out.println(variable.getInitialExpression());
+            	undefinedVariables.add(variable.getName());
+                System.out.println("Ignoring untyped or dynamically typed variable: " + variable.getName());
+            }
+            super.visitVariableExpression(variable);
+        }
+
+        @Override
+        public void visitExpressionStatement(ExpressionStatement statement) {
+            // Print statement being processed
+            System.out.println("Processing ExpressionStatement: " + statement.getText());
+            
+            // Check for any undefined variables in expressions
+            checkUndefinedVariables(statement.getExpression());
+            super.visitExpressionStatement(statement);
+        }
+
+        @Override
+        public void visitMethodCallExpression(MethodCallExpression call) {
+            // Print method call expression being processed
+            System.out.println("Processing MethodCallExpression: " + call.getText());
+            
+            // Check for any undefined variables in method calls
+            checkUndefinedVariables(call);
+            super.visitMethodCallExpression(call);
+        }
+
+        private void checkUndefinedVariables(Expression expression) {
+            // Print expression being checked for undefined variables
+            System.out.println("Checking for undefined variable in expression: " + expression.getText());
+
+            // If the expression is a variable, check if it's defined
+            if (expression instanceof VariableExpression) {
+                String varName = ((VariableExpression) expression).getName();
+                if (!definedVariables.contains(varName)) {
+                    undefinedVariables.add(varName);
+                    System.out.println("Undefined variable found: " + varName);
+                }
+            }
+        }
+
+        public Set<String> getDefinedVariables() {
+            return definedVariables;
+        }
+
+        public Set<String> getUndefinedVariables() {
+            return undefinedVariables;
+        }
+
+        @Override
+        protected SourceUnit getSourceUnit() {
+            return null;  // Not required for this visitor
+        }
+    
+    }
+    
+//    private static class VariableVisitor extends ClassCodeVisitorSupport {
+//        private final Set<String> definedVariables;
+//        private final Set<String> usedVariables;
+//
+//        public VariableVisitor(Set<String> definedVariables, Set<String> usedVariables) {
+//            this.definedVariables = definedVariables;
+//            this.usedVariables = usedVariables;
+//        }
+//
+////        @Override
+//        public void visitVariableDeclaration(DeclarationExpression expression) {
+//            // Handle multiple variable declarations
+//            if (expression.isMultipleAssignmentDeclaration()) {
+//                TupleExpression tuple = expression.getTupleExpression();
+//                for (Expression var : tuple.getExpressions()) {
+//                    if (var instanceof VariableExpression) {
+//                        definedVariables.add(((VariableExpression) var).getName());
+//                    }
+//                }
+//            } else {
+//                // Handle single variable declaration
+//                VariableExpression var = expression.getVariableExpression();
+//                if (var != null) {
+//                    definedVariables.add(var.getName());
+//                }
+//            }
+////            super.visitVariableDeclaration(expression);
+//        }
+//
+//        @Override
+//        public void visitVariableExpression(VariableExpression expression) {
+//            String name = expression.getName();
+//            usedVariables.add(name);
+//            super.visitVariableExpression(expression);
+//        }
+//
+//        @Override
+//        public void visitField(FieldNode node) {
+//            definedVariables.add(node.getName());
+//            super.visitField(node);
+//        }
+//
+//        @Override
+//        public void visitProperty(PropertyNode node) {
+//            definedVariables.add(node.getName());
+//            super.visitProperty(node);
+//        }
+//
+//        @Override
+//        public void visitMethod(MethodNode node) {
+//            super.visitMethod(node);
+//            for (Parameter param : node.getParameters()) {
+//                definedVariables.add(param.getName());
+//            }
+//        }
+//
+//        @Override
+//        protected SourceUnit getSourceUnit() {
+//            return null; // Return null or manage source unit as needed
+//        }
+//    }
+}
